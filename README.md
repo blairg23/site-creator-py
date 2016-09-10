@@ -8,3 +8,6 @@ A python script to create a template for a web-app project out of a given direct
 - CherryPy
 - AngularJS
 - More to come...
+
+
+May eventually implement some API automation as well.
