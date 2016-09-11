@@ -1,6 +1,5 @@
 # Custom ignores:
-/src/import/*
-/src/export/*
+/src/data/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
