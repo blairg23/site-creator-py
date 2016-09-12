@@ -15,6 +15,9 @@ import os
 import subprocess
 import shutil
 import hashlib
+import json
+
+import sys
 
 class FlaskSiteCreator():
 	def __init__(self, sitename='default', import_folder=None, export_folder=None, verbose=False):
@@ -29,11 +32,15 @@ class FlaskSiteCreator():
 
 		self.venv_directory = os.path.join(self.out_directory, 'venv')
 		self.app_directory = os.path.join(self.out_directory, 'app')
+		self.data_directory = os.path.join(self.app_directory, 'data')
 		self.static_directory = os.path.join(self.app_directory, 'static')
 		self.image_directory = os.path.join(self.static_directory, 'img')
 
 		self.input_template_directory = os.path.join(self.in_directory, 'html_pages')
 		self.output_template_directory = os.path.join(self.app_directory, 'templates')
+
+		self.input_static_directory = os.path.join(self.in_directory, 'static_files')
+		self.output_static_directory = os.path.join(self.app_directory, 'static')
 
 		self.pages = None
 
@@ -49,23 +56,28 @@ class FlaskSiteCreator():
 				venv_directory = os.path.join(out_directory, venv_name)
 				command = ['virtualenv '+ venv_directory]
 				subprocess.call([command])
+				print '[CREATED] virtual environment {venv_name}...'.format(venv_name=venv_name)
 		except Exception as e:
 			print e
 
 
-	def create_flask_directory(self, out_directory=None, sitename='default'):
+	def create_flask_directory(self, out_directory=None, sitename='default', debug_mode='True'):
 		'''
 		Creates all the basic elements for a Flask project.
 		'''
+
+		if os.path.exists(self.app_directory):
+			shutil.rmtree(self.app_directory)
+			print '[DELETED] {app_directory}...'.format(app_directory=self.app_directory)
+
 		try:
-			app_path = self.app_directory
 			site_directories = [
-						app_path,
-						os.path.join(app_path, 'data'),
+						self.app_directory,
+						self.data_directory,
 						self.static_directory,
 						os.path.join(self.static_directory, 'css'),
 						self.image_directory,
-						os.path.join(app_path, 'static', 'js'),						
+						os.path.join(self.app_directory, 'static', 'js'),						
 					]
 			if out_directory == None:
 				raise IOError('[ERROR] No output directory defined.')
@@ -73,6 +85,21 @@ class FlaskSiteCreator():
 				for site_directory in site_directories:
 					os.makedirs(site_directory)
 					print '[CREATED] {site_directory} successfully...'.format(site_directory=site_directory)
+
+			run_file_name = os.path.join(out_directory, 'run.py')
+			with open(run_file_name, 'w+') as outfile:
+				content = '#!flask/bin/python\n'
+				content += 'from app import app\n'
+				content += 'app.run(debug={debug_mode})\n'.format(debug_mode=debug_mode)
+				outfile.write(content)
+
+			init_file_name = os.path.join(self.app_directory, '__init__.py')
+			with open(init_file_name, 'w+') as outfile:
+				content = 'from flask import Flask\n'
+				content += '\n'
+				content += 'app = Flask(__name__)\n'
+				content += 'from app import views\n'
+				outfile.write(content)
 		except Exception as e:
 			print e
 
@@ -84,34 +111,72 @@ class FlaskSiteCreator():
 		pass
 
 
-	def move_template_pages(self, input_template_directory=None, output_template_directory=None):
+	def move_pages(self, input_directory=None, output_directory=None):
 		'''
-		Moves previously created template pages to the appropriate output directory.
+		Moves previously created pages to the appropriate output directory.
 		'''
-		shutil.copytree(input_template_directory, output_template_directory)
-		print '[COPYING] contents of {input_template_directory} to {output_template_directory}...'.format(
-																										input_template_directory=input_template_directory,
-																										output_template_directory=output_template_directory
-																									)	
+		if os.path.exists(output_directory):
+			shutil.rmtree(output_directory)
+			print '[DELETED] {output_directory}...'.format(output_directory=output_directory)
+
+		shutil.copytree(input_directory, output_directory)
+		print '[COPYING] contents of {input_directory} to {output_directory}...'.format(
+																							input_directory=input_directory,
+																							output_directory=output_directory
+																						)
 
 
-	def create_view_pages(self, app_directory=None, pages=[]):
+	def create_view_pages(self, app_directory=None, pages={}):
 		'''
 		Creates Flask functions that act as individual routes or pages.
 		'''
-		if pages == []:
+		if pages == {}:
 			pages = self.pages
 
+		print '[CREATING] URL routes...'
 		try:
 			if app_directory == None:
 				raise IOError('[ERROR] No application directory defined.')
 			else:
-				pass				
+				content = 'from flask import render_template\n'
+				content += 'from app import app\n'
+				content += '\n'
+				content += 'import json\n'
+				content += '\n'
+
+				for page_key, page_value in pages.iteritems():					
+					current_page = pages[page_key]
+			
+					url = current_page['url']
+					url_split = url.split('/')
+					function_name = url_split[-2] + '_' + url_split[-1]
+					template_name = url_split[-1] + '.html'	
+
+					# Overwrite stuff for the index page:
+					if page_key == '/home':
+						function_name = 'index'
+						template_name = 'index.html'
+						content += '@app.route(\'/\')\n'
+						content += '@app.route(\'/index\')\n'
+					
+					content += '@app.route(\'{url}\')\n'.format(url=url)
+					content += 'def {function_name}():\n'.format(function_name=function_name)
+					content += '\twith open(\'app/data/pages.json\', \'r\') as infile:\n'
+					content += '\t\tdata = json.load(infile)\n'
+					content += '\tpage = data[\'{url}\']\n'.format(url=url)
+					content += '\treturn render_template(\'{template_name}\', page=page)\n'.format(template_name=template_name)
+					content += '\n'
+
+					print '[CREATED] URL route for {url}...'.format(url=page_key)
+
+				views_file_name = os.path.join(app_directory, 'views.py')
+				with open(views_file_name, 'w+') as outfile:
+					outfile.write(content)
 		except Exception as e:
 			print e
 
 
-def import_data(self, in_site_directory=None):
+	def import_data(self, in_site_directory=None):
 		'''
 		Imports the data necessary to build the site, given some directory of the
 		virtual directory structure and content. Populates a "page" dictionary with
@@ -119,9 +184,62 @@ def import_data(self, in_site_directory=None):
 		'''
 		def clean_url(url_to_clean):
 			'''Clean up a filepath to become a web URL.'''
-			return url_to_clean.lower().replace(in_site_directory, '').replace(' ', '_').replace(',', '').replace('\\', '/')
+			return url_to_clean.lower().replace(in_site_directory, '').replace(' ', '_').replace(',', '').replace('-', '_').replace('\\', '/')
 
-		pages = []
+		def parse_content_file(content_file_path):
+			'''Parse a .txt file containing content for the specific page'''
+			parsed_content_file = {}
+			with open(content_file_path) as infile:
+				lines = infile.readlines()
+
+			heading_index = None
+			try:
+				heading_index = lines.index('# Heading\n')
+			except:
+				heading_index = None
+			try:
+				title_index = lines.index('# Title\n')
+			except:
+				# If no title tag exists, use the heading tag for the title:
+				title_index = heading_index
+			try:
+				description_index = lines.index('# Description\n')
+			except:
+				description_index = None
+
+			try:
+				if not title_index == None:
+					if title_index == heading_index:
+						title = ''.join(lines[heading_index+1:description_index])
+					else:
+						title = ''.join(lines[title_index+1:heading_index])
+					title = title.replace('\n', '')
+
+					heading = ''.join(lines[heading_index+1:description_index])
+					heading = heading.replace('\n', '')
+
+					if not description_index == None:
+						description = ''.join(lines[description_index+1:])
+						description = description.replace('\n', '<br />')
+
+					if self.verbose:
+						print 'title:', title
+						print 'heading:', heading
+						print 'description:', description
+
+					parsed_content_file['title'] = title
+					parsed_content_file['heading'] = heading
+					parsed_content_file['description'] = description
+
+				else:
+					raise Exception('[ERROR] Need to provide a # Heading tag in {content_file}.'.format(content_file=content_file_path))
+			except Exception as e:
+				print e
+
+			print '[PARSED] {content_file}...'.format(content_file=content_file_path)			
+			return parsed_content_file
+
+		pages = {}
 		image_extensions = ['.jpg', '.JPG', '.jpeg', '.png', '.PNG', '.gif']
 		try:
 			if in_site_directory == None:
@@ -129,6 +247,7 @@ def import_data(self, in_site_directory=None):
 			else:				
 				for root, subdirectories, files in os.walk(in_site_directory):
 					page = {}
+					page_content = {}
 					cleaned_root = clean_url(root)
 					current_folder = root.split(os.path.sep)[-1]
 					if self.verbose:
@@ -140,11 +259,25 @@ def import_data(self, in_site_directory=None):
 
 					# If we're not at the root directory:
 					if not root == in_site_directory:
-						url = cleaned_root						
-						page['url'] = url
-						page['title'] = current_folder
-						page['jumbotron'] = current_folder + '.'
-						page['images'] = []
+						# Get content from .txt file in directory:						
+						content_file_list = [file for file in files if '.txt' in file]
+						
+						# If there is a content file:
+						if not len(content_file_list) == 0:
+							content_file = content_file_list[0]
+							content_file_path = os.path.join(root, content_file)
+							content = parse_content_file(content_file_path)
+							page_content['title'] = content['title']
+							page_content['jumbotron'] = content['heading']
+							page_content['content'] = content['description']
+						else:
+							page_content['title'] = current_folder
+							page_content['jumbotron'] = current_folder + '.'
+							page_content['content'] = ''
+
+						url = cleaned_root
+						page_content['url'] = url
+						page_content['images'] = []
 						# Search for an image extension in the filename and add it to the image list if it exists:
 						images = [image for image in files if any(extension in image for extension in image_extensions)]
 
@@ -157,36 +290,51 @@ def import_data(self, in_site_directory=None):
 							h = hashlib.new('md5')
 							h.update(image_name)
 							hashed_image_name = h.hexdigest()
-							dest = os.path.join(self.image_directory, hashed_image_name + image_extension)
+							hashed_image_name += image_extension							
+							dest = os.path.join(self.image_directory, hashed_image_name)
 
 							# Finally, copy to the new directory:
 							if self.verbose:
 								print 'image source:', src
 								print 'image dest:', dest
 							shutil.copy2(src, dest)
-							page['images'].append(dest)
+
+							relative_hashed_image_path = os.path.join('static', 'img', hashed_image_name)
+
+							page_content['images'].append(relative_hashed_image_path)
 
 						links = []
 						if not len(subdirectories) == 0:
 							for subdirectory in subdirectories:
 								link = {}
-								cleaned_subdirectory = clean_url(subdirectory)
+								full_subdirectory = os.path.join(url, subdirectory)
+								cleaned_subdirectory = clean_url(full_subdirectory)
 								link['display_name'] = subdirectory
-								link['url'] = os.path.join(url, cleaned_subdirectory)
+								link['url'] = cleaned_subdirectory
 								links.append(link)
-						page['links'] = links
-						pages.append(page)
+						page_content['links'] = links
+						pages[url] = page_content
 					else:
 						# Currently not using this:
 						tabs = []
 						for subdirectory in subdirectories:
 							tabs.append(subdirectory)
 					
-		except Exception as e:
-			print e
-
+		except Exception as e:			
+			print e		
 		return pages
 
+
+	def export_data(self, pages={}):
+		'''
+		Export the pages data to a JSON file.
+		'''
+		if pages == {}:
+			pages = self.pages
+
+		pages_file_name = os.path.join(self.data_directory, 'pages.json')
+		with open(pages_file_name, 'w+') as outfile:
+			json.dump(pages, outfile)
 
 	def run(self):
 		sitename = self.sitename
@@ -200,26 +348,29 @@ def import_data(self, in_site_directory=None):
 		app_directory = self.app_directory
 
 		input_template_directory = self.input_template_directory
-		output_template_directory = self.output_template_directory
+		output_template_directory = self.output_template_directory		
 
-		if not os.path.exists(venv_directory):
-			self.create_virtual_environment
+		input_static_directory = self.input_static_directory
+		output_static_directory = self.output_static_directory
 		
-		if os.path.exists(app_directory):
-			shutil.rmtree(app_directory)
-			print '[DELETED] {app_directory}...'.format(app_directory=app_directory)
-		if os.path.exists(output_template_directory):
-			shutil.rmtree(output_template_directory)
-			print '[DELETED] {output_template_directory}...'.format(output_template_directory=output_template_directory)
+		if not os.path.exists(self.venv_directory):
+			self.create_virtual_environment(out_directory=out_directory)
 
 		self.create_flask_directory(out_directory=out_directory, sitename=sitename)
 
-		self.move_template_pages(
-									input_template_directory=input_template_directory,
-									output_template_directory=output_template_directory
-								)
+		self.move_pages(
+						input_directory=input_template_directory,
+						output_directory=output_template_directory
+					)
+
+		self.move_pages(
+						input_directory=input_static_directory,
+						output_directory=output_static_directory
+					)
 		
 		self.pages = self.import_data(in_site_directory=self.in_site_directory)
+
+		self.export_data()		
 
 		self.create_view_pages(app_directory=app_directory)
 
@@ -232,13 +383,14 @@ if __name__ == '__main__':
 									sitename=sitename,
 									import_folder=import_folder,
 									export_folder=export_folder,
-									verbose=True
+									verbose=False
 								)	
 
 	site_creator.run()
 
 
 # TODO:
-# 1. Import pics, hash them, and push to export folder [DONE]
-# 2. Write views.py functions (append to current, default ones?)
-# 3. Write tests for functions
+# 1. Import pics, hash them, and push to export folder. [DONE]
+# 2. Write views.py functions. [DONE]
+# 3. Write html to facilitate automatic generation of products html templates. 
+# 4. Write tests for functions.
