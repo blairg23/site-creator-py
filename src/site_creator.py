@@ -14,6 +14,7 @@ the name of the current project.
 import os
 import subprocess
 import shutil
+import hashlib
 
 class FlaskSiteCreator():
 	def __init__(self, sitename='default', import_folder=None, export_folder=None, verbose=False):
@@ -28,65 +29,13 @@ class FlaskSiteCreator():
 
 		self.venv_directory = os.path.join(self.out_directory, 'venv')
 		self.app_directory = os.path.join(self.out_directory, 'app')
+		self.static_directory = os.path.join(self.app_directory, 'static')
+		self.image_directory = os.path.join(self.static_directory, 'img')
 
 		self.input_template_directory = os.path.join(self.in_directory, 'html_pages')
 		self.output_template_directory = os.path.join(self.app_directory, 'templates')
 
-		self.pages = self.import_data(in_site_directory=self.in_site_directory)
-
-
-	def import_data(self, in_site_directory=None):
-		'''
-		Imports the data necessary to build the site, given some directory of the
-		virtual directory structure and content. Populates a "page" dictionary with
-		the information and returns a list of these "page" dictionaries.
-		'''
-		def clean_url(url_to_clean):
-			'''Clean up a filepath to become a web URL.'''
-			return url_to_clean.lower().replace(in_site_directory, '').replace(' ', '_').replace(',', '').replace('\\', '/')
-
-		pages = []
-		try:
-			if in_site_directory == None:
-				raise IOError('[ERROR] No input directory defined.')
-			else:				
-				for root, subdirectories, files in os.walk(in_site_directory):
-					page = {}
-					cleaned_root = clean_url(root)
-					current_folder = root.split(os.path.sep)[-1]
-					if self.verbose:
-						print 'root:', root
-						print 'cleaned root:', cleaned_root
-						print 'subdirectories:', subdirectories
-						print 'files:', files
-						print '\n'
-					# If we're not at the root directory:
-					if not root == in_site_directory:
-						url = cleaned_root						
-						page['url'] = url
-						page['title'] = current_folder
-						page['jumbotron'] = current_folder + '.'
-						links = []
-						if not len(subdirectories) == 0:
-							for subdirectory in subdirectories:
-								link = {}
-								cleaned_subdirectory = clean_url(subdirectory)
-								link['display_name'] = subdirectory
-								link['url'] = os.path.join(url, cleaned_subdirectory)
-								links.append(link)
-						page['links'] = links
-						pages.append(page)
-					else:
-						# Currently not using this:
-						tabs = []
-						for subdirectory in subdirectories:
-							tabs.append(subdirectory)
-					
-		except Exception as e:
-			print e
-
-		return pages
-
+		self.pages = None
 
 
 	def create_virtual_environment(self, out_directory=None, venv_name='venv'):
@@ -113,9 +62,9 @@ class FlaskSiteCreator():
 			site_directories = [
 						app_path,
 						os.path.join(app_path, 'data'),
-						os.path.join(app_path, 'static'),
-						os.path.join(app_path, 'static', 'css'),
-						os.path.join(app_path, 'static', 'img'),
+						self.static_directory,
+						os.path.join(self.static_directory, 'css'),
+						self.image_directory,
 						os.path.join(app_path, 'static', 'js'),						
 					]
 			if out_directory == None:
@@ -161,6 +110,84 @@ class FlaskSiteCreator():
 		except Exception as e:
 			print e
 
+
+def import_data(self, in_site_directory=None):
+		'''
+		Imports the data necessary to build the site, given some directory of the
+		virtual directory structure and content. Populates a "page" dictionary with
+		the information and returns a list of these "page" dictionaries.
+		'''
+		def clean_url(url_to_clean):
+			'''Clean up a filepath to become a web URL.'''
+			return url_to_clean.lower().replace(in_site_directory, '').replace(' ', '_').replace(',', '').replace('\\', '/')
+
+		pages = []
+		image_extensions = ['.jpg', '.JPG', '.jpeg', '.png', '.PNG', '.gif']
+		try:
+			if in_site_directory == None:
+				raise IOError('[ERROR] No input directory defined.')
+			else:				
+				for root, subdirectories, files in os.walk(in_site_directory):
+					page = {}
+					cleaned_root = clean_url(root)
+					current_folder = root.split(os.path.sep)[-1]
+					if self.verbose:
+						print 'root:', root
+						print 'cleaned root:', cleaned_root
+						print 'subdirectories:', subdirectories
+						print 'files:', files
+						print '\n'
+
+					# If we're not at the root directory:
+					if not root == in_site_directory:
+						url = cleaned_root						
+						page['url'] = url
+						page['title'] = current_folder
+						page['jumbotron'] = current_folder + '.'
+						page['images'] = []
+						# Search for an image extension in the filename and add it to the image list if it exists:
+						images = [image for image in files if any(extension in image for extension in image_extensions)]
+
+						# Copy images and hash image names:
+						for image in images:
+							image_name, image_extension = os.path.splitext(image)
+							src = os.path.join(root, image_name + image_extension)
+
+							# Hash the image name before copying:
+							h = hashlib.new('md5')
+							h.update(image_name)
+							hashed_image_name = h.hexdigest()
+							dest = os.path.join(self.image_directory, hashed_image_name + image_extension)
+
+							# Finally, copy to the new directory:
+							if self.verbose:
+								print 'image source:', src
+								print 'image dest:', dest
+							shutil.copy2(src, dest)
+							page['images'].append(dest)
+
+						links = []
+						if not len(subdirectories) == 0:
+							for subdirectory in subdirectories:
+								link = {}
+								cleaned_subdirectory = clean_url(subdirectory)
+								link['display_name'] = subdirectory
+								link['url'] = os.path.join(url, cleaned_subdirectory)
+								links.append(link)
+						page['links'] = links
+						pages.append(page)
+					else:
+						# Currently not using this:
+						tabs = []
+						for subdirectory in subdirectories:
+							tabs.append(subdirectory)
+					
+		except Exception as e:
+			print e
+
+		return pages
+
+
 	def run(self):
 		sitename = self.sitename
 		import_folder = self.import_folder
@@ -192,6 +219,8 @@ class FlaskSiteCreator():
 									output_template_directory=output_template_directory
 								)
 		
+		self.pages = self.import_data(in_site_directory=self.in_site_directory)
+
 		self.create_view_pages(app_directory=app_directory)
 
 
@@ -203,13 +232,13 @@ if __name__ == '__main__':
 									sitename=sitename,
 									import_folder=import_folder,
 									export_folder=export_folder,
-									verbose=False
+									verbose=True
 								)	
 
 	site_creator.run()
 
 
 # TODO:
-# 1. Import pics, hash them, and push to export folder
+# 1. Import pics, hash them, and push to export folder [DONE]
 # 2. Write views.py functions (append to current, default ones?)
 # 3. Write tests for functions
