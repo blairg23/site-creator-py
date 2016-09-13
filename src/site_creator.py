@@ -126,56 +126,6 @@ class FlaskSiteCreator():
 																						)
 
 
-	def create_view_pages(self, app_directory=None, pages={}):
-		'''
-		Creates Flask functions that act as individual routes or pages.
-		'''
-		if pages == {}:
-			pages = self.pages
-
-		print '[CREATING] URL routes...'
-		try:
-			if app_directory == None:
-				raise IOError('[ERROR] No application directory defined.')
-			else:
-				content = 'from flask import render_template\n'
-				content += 'from app import app\n'
-				content += '\n'
-				content += 'import json\n'
-				content += '\n'
-
-				for page_key, page_value in pages.iteritems():					
-					current_page = pages[page_key]
-			
-					url = current_page['url']
-					url_split = url.split('/')
-					function_name = url_split[-2] + '_' + url_split[-1]
-					template_name = url_split[-1] + '.html'	
-
-					# Overwrite stuff for the index page:
-					if page_key == '/home':
-						function_name = 'index'
-						template_name = 'index.html'
-						content += '@app.route(\'/\')\n'
-						content += '@app.route(\'/index\')\n'
-					
-					content += '@app.route(\'{url}\')\n'.format(url=url)
-					content += 'def {function_name}():\n'.format(function_name=function_name)
-					content += '\twith open(\'app/data/pages.json\', \'r\') as infile:\n'
-					content += '\t\tdata = json.load(infile)\n'
-					content += '\tpage = data[\'{url}\']\n'.format(url=url)
-					content += '\treturn render_template(\'{template_name}\', page=page)\n'.format(template_name=template_name)
-					content += '\n'
-
-					print '[CREATED] URL route for {url}...'.format(url=page_key)
-
-				views_file_name = os.path.join(app_directory, 'views.py')
-				with open(views_file_name, 'w+') as outfile:
-					outfile.write(content)
-		except Exception as e:
-			print e
-
-
 	def import_data(self, in_site_directory=None):
 		'''
 		Imports the data necessary to build the site, given some directory of the
@@ -336,6 +286,99 @@ class FlaskSiteCreator():
 		with open(pages_file_name, 'w+') as outfile:
 			json.dump(pages, outfile)
 
+
+	def create_view_pages(self, app_directory=None, pages={}):
+		'''
+		Creates Flask functions that act as individual routes or pages.
+		'''
+		if pages == {}:
+			pages = self.pages
+
+		print '[CREATING] URL routes...'
+		try:
+			if app_directory == None:
+				raise IOError('[ERROR] No application directory defined.')
+			else:
+				content = 'from flask import render_template\n'
+				content += 'from app import app\n'
+				content += '\n'
+				content += 'import json\n'
+				content += '\n'
+
+				for page_key, page_value in pages.iteritems():					
+					current_page = pages[page_key]
+			
+					url = current_page['url']
+					# Remove any empty strings after splitting the URL:
+					url_split = filter(None, url.split('/'))
+
+					if len(url_split) > 1:
+						function_name = url_split[-2] + '_' + url_split[-1]
+						template_name = url_split[-2] + '_' + url_split[-1] + '.html'	
+					else:						
+						function_name = url_split[-1]
+						template_name = url_split[-1] + '.html'	
+
+					# Overwrite stuff for the index page:
+					if page_key == '/home':
+						function_name = 'index'
+						template_name = 'index.html'
+						content += '@app.route(\'/\')\n'
+						content += '@app.route(\'/index\')\n'
+					
+					content += '@app.route(\'{url}\')\n'.format(url=url)
+					content += 'def {function_name}():\n'.format(function_name=function_name)
+					content += '\twith open(\'app/data/pages.json\', \'r\') as infile:\n'
+					content += '\t\tdata = json.load(infile)\n'
+					content += '\tpage = data[\'{url}\']\n'.format(url=url)
+					content += '\treturn render_template(\'{template_name}\', page=page)\n'.format(template_name=template_name)
+					content += '\n'
+
+					print '[CREATED] URL route for {url}...'.format(url=page_key)
+
+				views_file_name = os.path.join(app_directory, 'views.py')
+				with open(views_file_name, 'w+') as outfile:
+					outfile.write(content)
+		except Exception as e:
+			print e
+
+
+	def create_template_pages(self, pages={}, overwrite=False):
+		'''
+		Create template pages from the list of pages.
+		Can overwrite previously written pages or ignore them.
+		'''
+		if pages == {}:
+			pages = self.pages
+
+		print '[CREATING] template pages...'
+		for page_key in pages.keys():
+			page_split = filter(None, page_key.split('/'))			
+			base_route_name = 'base'
+			if len(page_split) > 1:
+				base_route_name = page_split[0] + '.html'
+				template_name = page_split[-2] + '_' + page_split[-1] + '.html'	
+			else:
+				template_name = page_split[-1] + '.html'
+
+			# Special case for the index page:
+			if page_key == '/home':
+				template_name = 'index.html'
+
+			template_full_path = os.path.join(self.output_template_directory, template_name)
+
+			if os.path.exists(template_full_path):
+				if overwrite:
+					content = '{% extends \"' + base_route_name + '\" %}'
+					with open(template_full_path, 'w') as outfile:
+						outfile.write(content)
+					print '[OVERWROTE] {template_name}...'.format(template_name=template_name)
+			else:
+				content = '{% extends \"' + base_route_name + '\" %}'
+				with open(template_full_path, 'w') as outfile:
+					outfile.write(content)
+				print '[CREATED] {template_name}...'.format(template_name=template_name)
+
 	def run(self):
 		sitename = self.sitename
 		import_folder = self.import_folder
@@ -370,9 +413,11 @@ class FlaskSiteCreator():
 		
 		self.pages = self.import_data(in_site_directory=self.in_site_directory)
 
-		self.export_data()		
+		self.export_data()
 
 		self.create_view_pages(app_directory=app_directory)
+
+		self.create_template_pages()
 
 
 if __name__ == '__main__':
