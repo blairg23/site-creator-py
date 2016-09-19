@@ -77,7 +77,7 @@ class FlaskSiteCreator():
 						self.static_directory,
 						os.path.join(self.static_directory, 'css'),
 						self.image_directory,
-						os.path.join(self.app_directory, 'static', 'js'),						
+						os.path.join(self.static_directory, 'js'),
 					]
 			if out_directory == None:
 				raise IOError('[ERROR] No output directory defined.')
@@ -249,7 +249,7 @@ class FlaskSiteCreator():
 								print 'image dest:', dest
 							shutil.copy2(src, dest)
 
-							relative_hashed_image_path = os.path.join('static', 'img', hashed_image_name)
+							relative_hashed_image_path = '/static/img/' + hashed_image_name
 
 							page_content['images'].append(relative_hashed_image_path)
 
