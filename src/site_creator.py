@@ -16,7 +16,7 @@ import subprocess
 import shutil
 import hashlib
 import json
-
+from PIL import Image
 import sys
 
 class FlaskSiteCreator():
@@ -189,8 +189,24 @@ class FlaskSiteCreator():
 			print '[PARSED] {content_file}...'.format(content_file=content_file_path)			
 			return parsed_content_file
 
+		def get_images_in_directory(directory):
+			'''Returns all the image names found in the given directory.'''
+			image_extensions = ['.jpg', '.JPG', '.jpeg', '.png', '.PNG', '.gif']
+			files = os.listdir(directory)
+			return [image for image in files if any(extension in image for extension in image_extensions)]
+
+		def hash_image_name(image):
+			'''Returns the hashed image name with extension for a given image name.'''
+			image_name, image_extension = os.path.splitext(image)
+			h = hashlib.new('md5')
+			h.update(image_name)
+			hashed_image_name = h.hexdigest()
+			hashed_image_name += image_extension
+
+			return hashed_image_name
+
 		pages = {}
-		image_extensions = ['.jpg', '.JPG', '.jpeg', '.png', '.PNG', '.gif']
+		
 		try:
 			if in_site_directory == None:
 				raise IOError('[ERROR] No input directory defined.')
@@ -228,39 +244,70 @@ class FlaskSiteCreator():
 						url = cleaned_root
 						page_content['url'] = url
 						page_content['images'] = []
-						# Search for an image extension in the filename and add it to the image list if it exists:
-						images = [image for image in files if any(extension in image for extension in image_extensions)]
+						images = get_images_in_directory(root)
 
 						# Copy images and hash image names:
 						for image in images:
-							image_name, image_extension = os.path.splitext(image)
-							src = os.path.join(root, image_name + image_extension)
+							src = os.path.join(root, image)
 
 							# Hash the image name before copying:
-							h = hashlib.new('md5')
-							h.update(image_name)
-							hashed_image_name = h.hexdigest()
-							hashed_image_name += image_extension							
+							hashed_image_name = hash_image_name(image)							
 							dest = os.path.join(self.image_directory, hashed_image_name)
 
 							# Finally, copy to the new directory:
 							if self.verbose:
 								print 'image source:', src
 								print 'image dest:', dest
-							shutil.copy2(src, dest)
+
+							if not os.path.exists(dest):
+								shutil.copy2(src, dest)
 
 							relative_hashed_image_path = '/static/img/' + hashed_image_name
 
 							page_content['images'].append(relative_hashed_image_path)
 
 						links = []
+						link_images = []
 						if not len(subdirectories) == 0:
 							for subdirectory in subdirectories:
 								link = {}
-								full_subdirectory = os.path.join(url, subdirectory)
-								cleaned_subdirectory = clean_url(full_subdirectory)
+								link_image = {}
+
+								url_subdirectory = os.path.join(url, subdirectory)								
+								cleaned_url_subdirectory = clean_url(url_subdirectory)
+								full_subdirectory_path = os.path.join(root, subdirectory)
+
+								if self.verbose:
+									print 'url_subdirectory:', url_subdirectory
+									print 'cleaned_url_subdirectory:', cleaned_url_subdirectory
+									print 'full_subdirectory_path:', full_subdirectory_path
+									print 'current working directory:', os.getcwd()
+	
 								link['display_name'] = subdirectory
-								link['url'] = cleaned_subdirectory
+								link['url'] = cleaned_url_subdirectory
+								link_images = get_images_in_directory(full_subdirectory_path)
+								hashed_link_images = []
+								for link_image in link_images:
+									src = os.path.join(os.getcwd(), full_subdirectory_path, link_image)
+									
+									with Image.open(src) as im:
+										width, height = im.size
+									
+									# Set minimum width of an image:
+									if width >= 350:
+										# Hash the image name before copying:
+										hashed_link_image_name = hash_image_name(link_image)
+										relative_hashed_link_image_name = '/static/img/' + hashed_link_image_name
+										hashed_link_images.append(relative_hashed_link_image_name)
+
+										dest = os.path.join(self.image_directory, hashed_link_image_name)
+
+										if not os.path.exists(dest):
+											shutil.copy2(src, dest)
+
+								link['images'] = hashed_link_images
+								if len(images) > 0:
+									print 'hashed_link_images:',hashed_link_images								
 								links.append(link)
 						page_content['links'] = links
 						pages[url] = page_content
@@ -428,7 +475,7 @@ if __name__ == '__main__':
 									sitename=sitename,
 									import_folder=import_folder,
 									export_folder=export_folder,
-									verbose=False
+									verbose=True
 								)	
 
 	site_creator.run()
