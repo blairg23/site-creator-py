@@ -89,8 +89,8 @@ class FlaskSiteCreator():
 			run_file_name = os.path.join(out_directory, 'run.py')
 			with open(run_file_name, 'w+') as outfile:
 				content = '#!flask/bin/python\n'
-				content += 'from app import app\n'
-				content += 'app.run(debug={debug_mode})\n'.format(debug_mode=debug_mode)
+				content += 'from app import app as application\n'
+				content += 'application.run(debug={debug_mode})\n'.format(debug_mode=debug_mode)
 				outfile.write(content)
 
 			init_file_name = os.path.join(self.app_directory, '__init__.py')
@@ -475,7 +475,7 @@ if __name__ == '__main__':
 									sitename=sitename,
 									import_folder=import_folder,
 									export_folder=export_folder,
-									verbose=True
+									verbose=False
 								)	
 
 	site_creator.run()
@@ -485,6 +485,6 @@ if __name__ == '__main__':
 # 1. Import pics, hash them, and push to export folder. [DONE]
 # 2. Write views.py functions. [DONE]
 # 3. Write html to facilitate automatic generation of products html templates. [DONE]
-# 4. Write html to add a thumbnail image (or carousel of images) to product thumbnails.
+# 4. Write html to add a thumbnail image (or carousel of images) to product thumbnails. [DONE]
 # 5. Write html to add content description (shortened) to product thumbnails.
 # 6. Write tests for functions.
