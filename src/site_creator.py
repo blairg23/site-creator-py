@@ -61,7 +61,7 @@ class FlaskSiteCreator():
 			print e
 
 
-	def create_flask_directory(self, out_directory=None, sitename='default', debug_mode='True'):
+	def create_flask_directory(self, out_directory=None, sitename='default', debug_mode='False'):
 		'''
 		Creates all the basic elements for a Flask project.
 		'''
@@ -89,8 +89,10 @@ class FlaskSiteCreator():
 			run_file_name = os.path.join(out_directory, 'run.py')
 			with open(run_file_name, 'w+') as outfile:
 				content = '#!flask/bin/python\n'
-				content += 'from app import app as application\n'
-				content += 'application.run(debug={debug_mode})\n'.format(debug_mode=debug_mode)
+				content += 'from app import app as application\n'				
+				content += '\n'
+				content += 'if __name__ == "__main__":\n'
+				content += '\tapplication.run(host="0.0.0.0", debug={debug_mode})\n'.format(debug_mode=debug_mode)
 				outfile.write(content)
 
 			init_file_name = os.path.join(self.app_directory, '__init__.py')
@@ -470,7 +472,7 @@ class FlaskSiteCreator():
 if __name__ == '__main__':
 	import_folder = os.path.join('data', 'import')
 	export_folder = os.path.join('data', 'export')
-	sitename = 'testing'
+	sitename = 'fabricon'
 	site_creator = FlaskSiteCreator(
 									sitename=sitename,
 									import_folder=import_folder,
