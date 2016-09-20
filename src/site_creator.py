@@ -482,9 +482,5 @@ if __name__ == '__main__':
 
 
 # TODO:
-# 1. Import pics, hash them, and push to export folder. [DONE]
-# 2. Write views.py functions. [DONE]
-# 3. Write html to facilitate automatic generation of products html templates. [DONE]
-# 4. Write html to add a thumbnail image (or carousel of images) to product thumbnails. [DONE]
-# 5. Write html to add content description (shortened) to product thumbnails.
-# 6. Write tests for functions.
+# 1. Write html to add content description (shortened) to product thumbnails.
+# 2. Write tests for functions.
