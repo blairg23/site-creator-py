@@ -1,3 +1,6 @@
+# Mac_Specific Stuff:
+*.DS_Store
+
 # Custom ignores:
 /src/data/*
 
