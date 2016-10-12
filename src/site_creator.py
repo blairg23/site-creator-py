@@ -20,7 +20,7 @@ from PIL import Image
 import sys
 
 class FlaskSiteCreator():
-	def __init__(self, sitename='default', import_folder=None, export_folder=None, verbose=False):
+	def __init__(self, sitename='default', import_folder=None, export_folder=None, development_mode = 'dev', bucket_name=None, verbose=False):
 		self.sitename = sitename
 		self.import_folder = import_folder
 		self.export_folder = export_folder
@@ -44,22 +44,8 @@ class FlaskSiteCreator():
 
 		self.pages = None
 
-
-	def create_virtual_environment(self, out_directory=None, venv_name='venv'):
-		'''
-		Creates the Python virtual environment to develop with.
-		'''
-		try:
-			if out_directory == None:
-				raise IOError('[ERROR] No output directory defined.')
-			else:
-				venv_directory = os.path.join(out_directory, venv_name)
-				command = ['virtualenv '+ venv_directory]
-				subprocess.call([command])
-				print '[CREATED] virtual environment {venv_name}...'.format(venv_name=venv_name)
-		except Exception as e:
-			print e
-
+		self.development_mode = development_mode
+		self.bucket_name = bucket_name
 
 	def create_flask_directory(self, out_directory=None, sitename='default', debug_mode='False'):
 		'''
@@ -106,6 +92,24 @@ class FlaskSiteCreator():
 			print e
 
 
+
+	def create_virtual_environment(self, out_directory=None, venv_name='venv'):
+		'''
+		Creates the Python virtual environment to develop with.
+		'''
+		try:
+			if out_directory == None:
+				raise IOError('[ERROR] No output directory defined.')
+			else:
+				venv_directory = os.path.join(out_directory, venv_name)
+				command = ['virtualenv', venv_directory]
+				subprocess.call(command)
+				print '[CREATED] virtual environment {venv_name}...'.format(venv_name=venv_name)
+		except Exception as e:
+			print venv_directory
+			print e
+
+
 	def create_base_page(self, page={}):
 		'''
 		Creates a base.html page to act as the general template for the site.
@@ -146,17 +150,22 @@ class FlaskSiteCreator():
 
 			heading_index = None
 			try:
-				heading_index = lines.index('# Heading\n')
+				heading_entry = next((line for line in lines if 'heading' in line.lower()), None)
+				heading_index = lines.index(heading_entry)
 			except:
 				heading_index = None
 			try:
-				title_index = lines.index('# Title\n')
+				title_entry = next((line for line in lines if 'title' in line.lower()), None)
+				title_index = lines.index(title_entry)
 			except:
 				# If no title tag exists, use the heading tag for the title:
 				title_index = heading_index
 			try:
-				description_index = lines.index('# Description\n')
+				description_entry = next((line for line in lines if 'description' in line.lower()), None)
+				description_index = lines.index(description_entry)
 			except:
+				print 'lines:',lines
+				print 'description_index:', description_index
 				description_index = None
 
 			try:
@@ -171,8 +180,10 @@ class FlaskSiteCreator():
 					heading = heading.replace('\n', '')
 
 					if not description_index == None:
-						description = ''.join(lines[description_index+1:])
+						description = '<p>'
+						description += ''.join(lines[description_index+1:])
 						description = description.replace('\n', '<br />')
+						description += '</p>'
 
 					if self.verbose:
 						print 'title:', title
@@ -252,10 +263,11 @@ class FlaskSiteCreator():
 						for image in images:
 							src = os.path.join(root, image)
 
+							# Instead of copying these into a new folder, might have to upload them to Amazon S3:
 							# Hash the image name before copying:
-							hashed_image_name = hash_image_name(image)							
+							hashed_image_name = hash_image_name(image)
 							dest = os.path.join(self.image_directory, hashed_image_name)
-
+							
 							# Finally, copy to the new directory:
 							if self.verbose:
 								print 'image source:', src
@@ -264,7 +276,15 @@ class FlaskSiteCreator():
 							if not os.path.exists(dest):
 								shutil.copy2(src, dest)
 
-							relative_hashed_image_path = '/static/img/' + hashed_image_name
+							if self.development_mode == 'development':
+								relative_hashed_image_path = '/static/img/{hashed_image_name}'.format(hashed_image_name=hashed_image_name)
+							elif self.development_mode == 'production':
+								relative_hashed_image_path = 'https://s3.amazonaws.com/{bucket_name}/img/{hashed_image_name}'.format(							
+																																	bucket_name=self.bucket_name,
+																																	hashed_image_name=hashed_image_name
+																																)
+							else:
+								raise IOError('[ERROR] Not a valid development mode. Use development or production.')
 
 							page_content['images'].append(relative_hashed_image_path)
 
@@ -297,15 +317,25 @@ class FlaskSiteCreator():
 									
 									# Set minimum width of an image:
 									if width >= 350:
+
+										# Instead of copying these into a new folder, might have to upload them to Amazon S3:
 										# Hash the image name before copying:
 										hashed_link_image_name = hash_image_name(link_image)
-										relative_hashed_link_image_name = '/static/img/' + hashed_link_image_name
-										hashed_link_images.append(relative_hashed_link_image_name)
-
+										
 										dest = os.path.join(self.image_directory, hashed_link_image_name)
 
 										if not os.path.exists(dest):
 											shutil.copy2(src, dest)
+
+										# Set up the links in the data file:
+										if self.development_mode == 'development':
+											relative_hashed_link_image_name = '/static/img/{hashed_image_name}'.format(hashed_image_name=hashed_link_image_name)
+										elif self.development_mode == 'production':
+											relative_hashed_link_image_name = 'https://s3.amazonaws.com/{bucket_name}/img/{hashed_image_name}'.format(							
+																																				bucket_name=self.bucket_name,
+																																				hashed_image_name=hashed_link_image_name
+																																			)
+										hashed_link_images.append(relative_hashed_link_image_name)
 
 								link['images'] = hashed_link_images
 								if len(images) > 0:
@@ -445,10 +475,10 @@ class FlaskSiteCreator():
 		input_static_directory = self.input_static_directory
 		output_static_directory = self.output_static_directory
 		
-		if not os.path.exists(self.venv_directory):
-			self.create_virtual_environment(out_directory=out_directory)
-
 		self.create_flask_directory(out_directory=out_directory, sitename=sitename)
+
+		if not os.path.exists(self.venv_directory):
+			self.create_virtual_environment(out_directory=out_directory)		
 
 		self.move_pages(
 						input_directory=input_template_directory,
@@ -473,10 +503,15 @@ if __name__ == '__main__':
 	import_folder = os.path.join('data', 'import')
 	export_folder = os.path.join('data', 'export')
 	sitename = 'fabricon'
+	bucket_name = sitename + '-assets'
+	development_mode = 'production'
+
 	site_creator = FlaskSiteCreator(
 									sitename=sitename,
 									import_folder=import_folder,
 									export_folder=export_folder,
+									development_mode=development_mode,
+									bucket_name=bucket_name,
 									verbose=False
 								)	
 
