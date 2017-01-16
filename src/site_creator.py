@@ -54,7 +54,7 @@ class FlaskSiteCreator():
 
 		if os.path.exists(self.app_directory):
 			shutil.rmtree(self.app_directory)
-			print '[DELETED] {app_directory}...'.format(app_directory=self.app_directory)
+			print('[DELETED] {app_directory}...'.format(app_directory=self.app_directory))
 
 		try:
 			site_directories = [
@@ -70,10 +70,10 @@ class FlaskSiteCreator():
 			else:
 				for site_directory in site_directories:
 					os.makedirs(site_directory)
-					print '[CREATED] {site_directory} successfully...'.format(site_directory=site_directory)
+					print('[CREATED] {site_directory} successfully...'.format(site_directory=site_directory))
 
 			run_file_name = os.path.join(out_directory, 'run.py')
-			with open(run_file_name, 'w+') as outfile:
+			with open(run_file_name, 'w+', encoding="utf8") as outfile:
 				content = '#!flask/bin/python\n'
 				content += 'from app import app as application\n'				
 				content += '\n'
@@ -82,14 +82,14 @@ class FlaskSiteCreator():
 				outfile.write(content)
 
 			init_file_name = os.path.join(self.app_directory, '__init__.py')
-			with open(init_file_name, 'w+') as outfile:
+			with open(init_file_name, 'w+', encoding="utf8") as outfile:
 				content = 'from flask import Flask\n'
 				content += '\n'
 				content += 'app = Flask(__name__)\n'
 				content += 'from app import views\n'
 				outfile.write(content)
 		except Exception as e:
-			print e
+			print(e)
 
 
 
@@ -104,10 +104,10 @@ class FlaskSiteCreator():
 				venv_directory = os.path.join(out_directory, venv_name)
 				command = ['virtualenv', venv_directory]
 				subprocess.call(command)
-				print '[CREATED] virtual environment {venv_name}...'.format(venv_name=venv_name)
+				print('[CREATED] virtual environment {venv_name}...'.format(venv_name=venv_name))
 		except Exception as e:
-			print venv_directory
-			print e
+			print(venv_directory)
+			print(e)
 
 
 	def create_base_page(self, page={}):
@@ -123,13 +123,14 @@ class FlaskSiteCreator():
 		'''
 		if os.path.exists(output_directory):
 			shutil.rmtree(output_directory)
-			print '[DELETED] {output_directory}...'.format(output_directory=output_directory)
+			print('[DELETED] {output_directory}...'.format(output_directory=output_directory))
 
 		shutil.copytree(input_directory, output_directory)
-		print '[COPYING] contents of {input_directory} to {output_directory}...'.format(
+		print('[COPYING] contents of {input_directory} to {output_directory}...'.format(
 																							input_directory=input_directory,
 																							output_directory=output_directory
 																						)
+		)
 
 
 	def import_data(self, in_site_directory=None):
@@ -145,7 +146,7 @@ class FlaskSiteCreator():
 		def parse_content_file(content_file_path):
 			'''Parse a .txt file containing content for the specific page'''
 			parsed_content_file = {}
-			with open(content_file_path) as infile:
+			with open(content_file_path, encoding="utf8") as infile:
 				lines = infile.readlines()
 
 			heading_index = None
@@ -164,42 +165,42 @@ class FlaskSiteCreator():
 				description_entry = next((line for line in lines if 'description' in line.lower()), None)
 				description_index = lines.index(description_entry)
 			except:
-				print 'lines:',lines
-				print 'description_index:', description_index
+				print('lines:',lines)
+				print('description_index:', description_index)
 				description_index = None
 
-			try:
-				if not title_index == None:
-					if title_index == heading_index:
-						title = ''.join(lines[heading_index+1:description_index])
-					else:
-						title = ''.join(lines[title_index+1:heading_index])
-					title = title.replace('\n', '')
-
-					heading = ''.join(lines[heading_index+1:description_index])
-					heading = heading.replace('\n', '')
-
-					if not description_index == None:
-						description = '<p>'
-						description += ''.join(lines[description_index+1:])
-						description = description.replace('\n', '<br />')
-						description += '</p>'
-
-					if self.verbose:
-						print 'title:', title
-						print 'heading:', heading
-						print 'description:', description
-
-					parsed_content_file['title'] = title
-					parsed_content_file['heading'] = heading
-					parsed_content_file['description'] = description
-
+			# try:
+			if not title_index == None:
+				if title_index == heading_index:
+					title = ''.join(lines[heading_index+1:description_index])
 				else:
-					raise Exception('[ERROR] Need to provide a # Heading tag in {content_file}.'.format(content_file=content_file_path))
-			except Exception as e:
-				print e
+					title = ''.join(lines[title_index+1:heading_index])
+				title = title.replace('\n', '')
 
-			print '[PARSED] {content_file}...'.format(content_file=content_file_path)			
+				heading = ''.join(lines[heading_index+1:description_index])
+				heading = heading.replace('\n', '')
+
+				if not description_index == None:
+					description = '<p>'
+					description += ''.join(lines[description_index+1:])
+					description = description.replace('\n', '<br />')
+					description += '</p>'
+
+				if self.verbose:
+					print('title:', title)
+					print('heading:', heading)
+					print('description:', description)
+
+				parsed_content_file['title'] = title
+				parsed_content_file['heading'] = heading
+				parsed_content_file['description'] = description
+
+			else:
+				raise Exception('[ERROR] Need to provide a # Heading tag in {content_file}.'.format(content_file=content_file_path))
+			# except Exception as e:
+			# 	print(e)
+
+			print('[PARSED] {content_file}...'.format(content_file=content_file_path))
 			return parsed_content_file
 
 		def get_images_in_directory(directory):
@@ -212,7 +213,7 @@ class FlaskSiteCreator():
 			'''Returns the hashed image name with extension for a given image name.'''
 			image_name, image_extension = os.path.splitext(image)
 			h = hashlib.new('md5')
-			h.update(image_name)
+			h.update(image_name.encode())
 			hashed_image_name = h.hexdigest()
 			hashed_image_name += image_extension
 
@@ -230,11 +231,11 @@ class FlaskSiteCreator():
 					cleaned_root = clean_url(root)
 					current_folder = root.split(os.path.sep)[-1]
 					if self.verbose:
-						print 'root:', root
-						print 'cleaned root:', cleaned_root
-						print 'subdirectories:', subdirectories
-						print 'files:', files
-						print '\n'
+						print('root:', root)
+						print('cleaned root:', cleaned_root)
+						print('subdirectories:', subdirectories)
+						print('files:', files)
+						print('\n')
 
 					# If we're not at the root directory:
 					if not root == in_site_directory:
@@ -270,8 +271,8 @@ class FlaskSiteCreator():
 							
 							# Finally, copy to the new directory:
 							if self.verbose:
-								print 'image source:', src
-								print 'image dest:', dest
+								print('image source:', src)
+								print('image dest:', dest)
 
 							if not os.path.exists(dest):
 								shutil.copy2(src, dest)
@@ -300,10 +301,10 @@ class FlaskSiteCreator():
 								full_subdirectory_path = os.path.join(root, subdirectory)
 
 								if self.verbose:
-									print 'url_subdirectory:', url_subdirectory
-									print 'cleaned_url_subdirectory:', cleaned_url_subdirectory
-									print 'full_subdirectory_path:', full_subdirectory_path
-									print 'current working directory:', os.getcwd()
+									print('url_subdirectory:', url_subdirectory)
+									print('cleaned_url_subdirectory:', cleaned_url_subdirectory)
+									print('full_subdirectory_path:', full_subdirectory_path)
+									print('current working directory:', os.getcwd())
 	
 								link['display_name'] = subdirectory
 								link['url'] = cleaned_url_subdirectory
@@ -339,7 +340,7 @@ class FlaskSiteCreator():
 
 								link['images'] = hashed_link_images
 								if len(images) > 0:
-									print 'hashed_link_images:',hashed_link_images								
+									print('hashed_link_images:',hashed_link_images								)
 								links.append(link)
 						page_content['links'] = links
 						pages[url] = page_content
@@ -350,7 +351,7 @@ class FlaskSiteCreator():
 							tabs.append(subdirectory)
 					
 		except Exception as e:			
-			print e		
+			print(e		)
 		return pages
 
 
@@ -362,7 +363,7 @@ class FlaskSiteCreator():
 			pages = self.pages
 
 		pages_file_name = os.path.join(self.data_directory, 'pages.json')
-		with open(pages_file_name, 'w+') as outfile:
+		with open(pages_file_name, 'w+', encoding="utf8") as outfile:
 			json.dump(pages, outfile)
 
 
@@ -373,7 +374,7 @@ class FlaskSiteCreator():
 		if pages == {}:
 			pages = self.pages
 
-		print '[CREATING] URL routes...'
+		print('[CREATING] URL routes...')
 		try:
 			if app_directory == None:
 				raise IOError('[ERROR] No application directory defined.')
@@ -384,14 +385,15 @@ class FlaskSiteCreator():
 				content += 'import json\n'
 				content += '\n'
 
-				for page_key, page_value in pages.iteritems():					
+				for page_key, page_value in pages.items():					
 					current_page = pages[page_key]
 			
 					url = current_page['url']
-					# Remove any empty strings after splitting the URL:
-					url_split = filter(None, url.split('/'))
+					# Remove any empty strings after splitting the URL:					
+					#url_split = filter(None, url.split('/'))
+					url_split = url.split('/')
 
-					if len(url_split) > 1:
+					if len(url_split) > 2:
 						function_name = url_split[-2] + '_' + url_split[-1]
 						template_name = url_split[-2] + '_' + url_split[-1] + '.html'	
 					else:						
@@ -413,13 +415,13 @@ class FlaskSiteCreator():
 					content += '\treturn render_template(\'{template_name}\', page=page)\n'.format(template_name=template_name)
 					content += '\n'
 
-					print '[CREATED] URL route for {url}...'.format(url=page_key)
+					print('[CREATED] URL route for {url}...'.format(url=page_key))
 
 				views_file_name = os.path.join(app_directory, 'views.py')
-				with open(views_file_name, 'w+') as outfile:
+				with open(views_file_name, 'w+', encoding="utf8") as outfile:
 					outfile.write(content)
 		except Exception as e:
-			print e
+			print(e)
 
 
 	def create_template_pages(self, pages={}, overwrite=False):
@@ -430,12 +432,14 @@ class FlaskSiteCreator():
 		if pages == {}:
 			pages = self.pages
 
-		print '[CREATING] template pages...'
+		print('[CREATING] template pages...')
 		for page_key in pages.keys():
-			page_split = filter(None, page_key.split('/'))			
+			#print(page_key.split('/'))
+			page_split = page_key.split('/')
+			#page_split = filter(None, page_key.split('/'))			
 			base_route_name = 'base'
-			if len(page_split) > 1:
-				base_route_name = page_split[0] + '.html'
+			if len(page_split) > 2:
+				base_route_name = page_split[1] + '.html'
 				template_name = page_split[-2] + '_' + page_split[-1] + '.html'	
 			else:
 				template_name = page_split[-1] + '.html'
@@ -449,14 +453,14 @@ class FlaskSiteCreator():
 			if os.path.exists(template_full_path):
 				if overwrite:
 					content = '{% extends \"' + base_route_name + '\" %}'
-					with open(template_full_path, 'w') as outfile:
+					with open(template_full_path, 'w', encoding="utf8") as outfile:
 						outfile.write(content)
-					print '[OVERWROTE] {template_name}...'.format(template_name=template_name)
+					print('[OVERWROTE] {template_name}...'.format(template_name=template_name))
 			else:
 				content = '{% extends \"' + base_route_name + '\" %}'
-				with open(template_full_path, 'w') as outfile:
+				with open(template_full_path, 'w', encoding="utf8") as outfile:
 					outfile.write(content)
-				print '[CREATED] {template_name}...'.format(template_name=template_name)
+				print('[CREATED] {template_name}...'.format(template_name=template_name))
 
 	def run(self):
 		sitename = self.sitename
